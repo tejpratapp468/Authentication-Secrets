@@ -4,7 +4,8 @@ const express=require("express");
 const bodyParser=require("body-parser");
 const ejs=require("ejs");
 const mongoose=require("mongoose");
-const encrypt=require("mongoose-encryption");
+//const encrypt=require("mongoose-encryption");
+const md5=require("md5");
 
 const app=express();
 
@@ -22,7 +23,7 @@ const userSchema=new mongoose.Schema({
   password:String
 });
 
-userSchema.plugin(encrypt, {secret:process.env.SECRET, encryptedFields: ["password"]});
+//level 2//userSchema.plugin(encrypt, {secret:process.env.SECRET, encryptedFields: ["password"]});
 /*In plugin we have added encryption package to userSchema by encryption
 we have added secret that we will use to encrypt our Password through secret:secrets
 we have added fields that we want to encrypt through encryptedFields*/
@@ -44,7 +45,7 @@ app.get("/register",function(req,res){
 app.post("/register",function(req,res){
   const newUser=new User({
     email:req.body.username,
-    password:req.body.password
+    password:md5(req.body.password) //we are using md5 to turn password into irreversible hash
   });
   newUser.save(function(err){ //When save function is called thenbehind the scene mongoose encrypt will encrypt  password field
     if(err){
@@ -58,7 +59,7 @@ app.post("/register",function(req,res){
 
 app.post("/login",function(req,res){
   const username=req.body.username;
-  const password=req.body.password;
+  const password=md5(req.body.password);//we will hash the user's password using same hash function md5
 
   User.findOne({email:username},function(err,foundUser){ /*when this findOne function is called then mongoose
     will decrypt password field to compare it with password entered by user*/
@@ -70,6 +71,7 @@ app.post("/login",function(req,res){
           res.render("secrets");
         }
         else{
+          //res.send();
           res.send("Invalid login credentials");
         }
       }
