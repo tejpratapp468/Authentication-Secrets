@@ -7,6 +7,8 @@ const mongoose=require("mongoose");
 const session = require('express-session');
 const passport=require("passport");
 const passportLocalMongoose=require("passport-local-mongoose");
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const findOrCreate = require('mongoose-findorcreate');
 
 const app=express();
 
@@ -37,23 +39,66 @@ mongoose.set("useCreateIndex", true);
 //this schema is no longer simple a JS object but it is an object created from mongoose schema class.
 const userSchema=new mongoose.Schema({
   email:String,
-  password:String
+  password:String,
+  googleId:String
 });
 
-//set up for passportLocalMongoose to plugin userSchema with passportLocalMongoose it has to be a mongoose schema
+//set up for passportLocalMongoose & findOrCreate to plugin userSchema with passportLocalMongoose & findOrCreate it has to be a mongoose schema
 userSchema.plugin(passportLocalMongoose);
+userSchema.plugin(findOrCreate);
 
 const User=mongoose.model("User",userSchema);
 
 //default code for using passportLocalMongoose from its documentation
 passport.use(User.createStrategy()); //creating local login strategy
 
-passport.serializeUser(User.serializeUser());//to serialize user
-passport.deserializeUser(User.deserializeUser());//to deserialize user
+// In order to support login sessions, Passport will serialize and deserialize user instances to and from the session.
+passport.serializeUser(function(user, done) {
+  done(null, user.id);
+});
+
+passport.deserializeUser(function(id, done) {
+  User.findById(id, function(err, user) {
+    done(err, user);
+  });
+});
+
+//setting up google strategy
+passport.use(new GoogleStrategy({
+    clientID: process.env.CLIENT_ID,
+    clientSecret: process.env.CLIENT_SECRET,
+    callbackURL: "http://localhost:3000/auth/google/secrets",
+    userProfileURL:"https://www.googleapis.com/oauth2/v3/userinfo"
+  },
+  /*google strategy for login and register if successful then we have callback function where
+   google sends back accessToken,we got user's profile(profile contains user's email,google id etc that we have
+ access to) */
+  function(accessToken, refreshToken, profile, cb) {
+    console.log(profile);
+    /*finally we use the data that we get back from google to find or create user in our database */
+    User.findOrCreate({ googleId: profile.id,username:profile.emails[0].value }, function (err, user) {
+      return cb(err, user);
+    });
+  }
+));
 
 app.get("/",function(req,res){
   res.render("home");
 });
+
+//registration request with google goes to this route
+app.get("/auth/google",
+  passport.authenticate('google', { scope: ["profile","email"] })
+  //authenticating with google strategy
+);
+
+//once login is successful google will redirect user back to our website by making get request to auth/google/secret
+app.get("/auth/google/secrets",
+  passport.authenticate('google', { failureRedirect: "/login" }), //failure redirects to login page
+  function(req, res) {
+    // Successful authentication, redirects to secrets page.
+    res.redirect('/secrets');
+  });
 
 app.get("/login",function(req,res){
   res.render("login");
