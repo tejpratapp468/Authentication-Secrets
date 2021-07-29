@@ -204,3 +204,7 @@ req.login(user,function(err){  //user came from login credentials
 app.listen(3000,function(){
   console.log("Server started on port 3000");
 });
+
+/*
+Passport uses serializeUser function to persist user data (after successful authentication) into session. Function deserializeUser is used to retrieve user data from session.
+*/
